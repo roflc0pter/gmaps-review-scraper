@@ -1,0 +1,45 @@
+stages:
+  - build
+  - deploy
+
+build-job:
+  stage: build
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY --username $CI_REGISTRY_USER --password-stdin
+
+  script:
+    - docker build -t "${CI_REGISTRY_IMAGE}:${CI_COMMIT_SHORT_SHA}" .
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    - echo "IMAGE $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA pushed"
+
+.deploy:
+  stage: deploy
+  variables:
+    IMAGE: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    SERVER: "172.18.18.7"
+  before_script:
+    - export DOCKER_HOST="ssh://$CI_DEPLOY_USER@$SERVER"
+    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY --username $CI_REGISTRY_USER --password-stdin
+
+  script:
+    - docker stack deploy --with-registry-auth -c docker-compose.yml $STACK_NAME
+
+staging:
+  extends: .deploy
+  environment:
+    name: test
+  variables:
+    STACK_NAME: "$CI_PROJECT_NAME-test"
+    APP_PORT: 3060
+
+production:
+  extends: .deploy
+  needs: ["build-job"]
+  variables:
+    STACK_NAME: "$CI_PROJECT_NAME"
+    APP_PORT: 3061
+  environment:
+    name: production
+  only:
+    - main
+  when: manual

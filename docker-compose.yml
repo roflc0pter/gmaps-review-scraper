@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  app:
+    image: $IMAGE
+    volumes:
+      - uploads:/app/uploads
+    ports:
+      - "$APP_PORT:3000"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "10"
+
+volumes:
+  uploads:
